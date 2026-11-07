@@ -29,6 +29,13 @@ export class AttendanceService {
       include: {
         department: true,
         position: true,
+        kpiEvaluations: {
+          where: { month },
+        },
+        salaryProfiles: {
+          orderBy: { effectiveDate: 'desc' },
+          take: 1,
+        },
         attendanceDays: {
           where: {
             workDate: { gte: startDate, lte: endDate },
@@ -39,7 +46,20 @@ export class AttendanceService {
       orderBy: { employeeCode: 'asc' },
     });
 
-    return employees;
+    return employees.map((emp) => {
+      const kpiEval = emp.kpiEvaluations?.[0];
+      const kpiPercent = kpiEval?.kpiPercent !== undefined && kpiEval?.kpiPercent !== null
+        ? kpiEval.kpiPercent
+        : 100;
+      const kpiSalary = emp.salaryProfiles?.[0]?.kpiSalary ?? (emp as any).kpiSalary ?? 0;
+
+      return {
+        ...emp,
+        kpiPercent,
+        kpiSalary,
+        kpiNote: kpiEval?.notes || '',
+      };
+    });
   }
 
   // Xóa toàn bộ dữ liệu chấm công máy của 1 tháng (AttendanceDay & ViolationRecord) để import và tính công lại

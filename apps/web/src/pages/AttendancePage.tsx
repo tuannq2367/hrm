@@ -94,6 +94,44 @@ export const AttendancePage: React.FC = () => {
   const [savingKpi, setSavingKpi] = useState(false);
   const [kpiDeptFilter, setKpiDeptFilter] = useState<string>('');
 
+  // Modal Đánh giá KPI riêng cho từng nhân sự
+  const [singleKpiModalOpen, setSingleKpiModalOpen] = useState(false);
+  const [singleKpiEmp, setSingleKpiEmp] = useState<any>(null);
+  const [singleKpiPercent, setSingleKpiPercent] = useState<number>(100);
+  const [singleKpiNote, setSingleKpiNote] = useState<string>('');
+  const [savingSingleKpi, setSavingSingleKpi] = useState(false);
+
+  const handleOpenSingleKpi = (emp: any) => {
+    setSingleKpiEmp(emp);
+    setSingleKpiPercent(emp.kpiPercent !== undefined ? emp.kpiPercent : 100);
+    setSingleKpiNote(emp.kpiNote || '');
+    setSingleKpiModalOpen(true);
+  };
+
+  const handleSaveSingleKpi = async () => {
+    if (!singleKpiEmp) return;
+    try {
+      setSavingSingleKpi(true);
+      await apiClient.post('/payroll/kpi/monthly', {
+        month: selectedMonth,
+        evaluations: [
+          {
+            employeeId: singleKpiEmp.id,
+            kpiPercent: Number(singleKpiPercent) || 0,
+            notes: singleKpiNote,
+          },
+        ],
+      });
+      message.success(`Đã lưu đánh giá KPI ${singleKpiPercent}% cho ${singleKpiEmp.fullName}!`);
+      setSingleKpiModalOpen(false);
+      loadAttendanceData();
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Có lỗi khi lưu đánh giá KPI');
+    } finally {
+      setSavingSingleKpi(false);
+    }
+  };
+
   const formatPunchTime = (dt?: string | null) => {
     if (!dt) return '-';
     const match = String(dt).match(/T(\d{2}:\d{2})/);
@@ -761,6 +799,7 @@ export const AttendancePage: React.FC = () => {
       });
       message.success(res.data.message || 'Lưu đánh giá KPI thành công!');
       setKpiModalOpen(false);
+      loadAttendanceData();
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Có lỗi xảy ra khi lưu đánh giá KPI');
     } finally {
@@ -902,6 +941,71 @@ export const AttendancePage: React.FC = () => {
       },
     },
     {
+      title: 'Đánh giá KPI',
+      key: 'kpiPercent',
+      width: 135,
+      render: (_: any, r: any) => {
+        const percent = r.kpiPercent !== undefined ? r.kpiPercent : 100;
+        const color = percent >= 100 ? '#52c41a' : percent >= 80 ? '#1677ff' : percent >= 50 ? '#fa8c16' : '#cf1322';
+        const label = percent >= 120 ? 'Xuất sắc' : percent >= 100 ? 'Đạt' : percent >= 80 ? 'Khá' : 'Chưa đạt';
+        const kpiSal = r.kpiSalary || 0;
+        const estPay = Math.round((kpiSal * percent) / 100);
+
+        return (
+          <Tooltip
+            title={
+              <div style={{ fontSize: 12 }}>
+                <div>
+                  Hiệu quả công việc: <b>{percent}% ({label})</b>
+                </div>
+                {kpiSal > 0 ? (
+                  <div style={{ marginTop: 2 }}>
+                    Định mức Lương KPI: {kpiSal.toLocaleString('vi-VN')} đ<br />
+                    → Nhận theo KPI: <b style={{ color: '#52c41a' }}>{estPay.toLocaleString('vi-VN')} đ</b>
+                  </div>
+                ) : (
+                  <div style={{ color: '#8c8c8c' }}>Chưa thiết lập mức lương KPI</div>
+                )}
+                {r.kpiNote && (
+                  <div style={{ fontStyle: 'italic', color: '#ffd591', marginTop: 3 }}>
+                    Nhận xét: {r.kpiNote}
+                  </div>
+                )}
+                {isAdminOrHr && (
+                  <div style={{ marginTop: 4, color: '#40a9ff', fontWeight: 600 }}>
+                    👉 Bấm để chỉnh sửa KPI nhân viên này
+                  </div>
+                )}
+              </div>
+            }
+          >
+            <div
+              style={{ cursor: isAdminOrHr ? 'pointer' : 'default', display: 'inline-block' }}
+              onClick={() => isAdminOrHr && handleOpenSingleKpi(r)}
+            >
+              <Tag
+                icon={<TrophyOutlined />}
+                style={{
+                  color,
+                  borderColor: color,
+                  fontWeight: 700,
+                  fontSize: 12,
+                  padding: '2px 8px',
+                  background: '#fafafa',
+                }}
+              >
+                {percent}%
+              </Tag>
+              <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 2 }}>
+                {label}
+                {isAdminOrHr && <EditOutlined style={{ marginLeft: 4, color: '#1677ff', fontSize: 10 }} />}
+              </div>
+            </div>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: 'Thao tác',
       key: 'action',
       render: (_: any, r: any) => {
@@ -917,6 +1021,18 @@ export const AttendancePage: React.FC = () => {
             >
               Chi tiết công & OT
             </Button>
+            {isAdminOrHr && (
+              <Tooltip title="Đánh giá hiệu quả công việc & % hoàn thành KPI tháng">
+                <Button
+                  size="small"
+                  icon={<TrophyOutlined />}
+                  style={{ color: '#722ed1', borderColor: '#722ed1' }}
+                  onClick={() => handleOpenSingleKpi(r)}
+                >
+                  KPI ({r.kpiPercent ?? 100}%)
+                </Button>
+              </Tooltip>
+            )}
             {isAdminOrHr && isStore && (
               <Button
                 size="small"
@@ -1220,10 +1336,10 @@ export const AttendancePage: React.FC = () => {
             </Button>
             <Button
               icon={<TrophyOutlined />}
-              style={{ background: '#722ed1', color: '#fff', borderColor: '#722ed1' }}
+              style={{ background: '#722ed1', color: '#fff', borderColor: '#722ed1', fontWeight: 600 }}
               onClick={handleOpenKpiModal}
             >
-              Đánh giá KPI tháng
+              🏆 Đánh giá KPI cả tháng ({selectedMonth})
             </Button>
             <Popconfirm
               title="Xóa dữ liệu chấm công tháng này?"
@@ -2511,6 +2627,130 @@ export const AttendancePage: React.FC = () => {
             },
           ]}
         />
+      </Modal>
+
+      {/* Modal Đánh giá KPI riêng cho 1 nhân sự */}
+      <Modal
+        title={
+          <Space>
+            <TrophyOutlined style={{ color: '#722ed1', fontSize: 20 }} />
+            <span>
+              Đánh giá KPI tháng {selectedMonth}: {singleKpiEmp?.fullName} ({singleKpiEmp?.employeeCode})
+            </span>
+          </Space>
+        }
+        open={singleKpiModalOpen}
+        onCancel={() => setSingleKpiModalOpen(false)}
+        footer={null}
+        width={540}
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Alert
+            type="info"
+            showIcon
+            message="Đánh giá hiệu quả công việc & % hoàn thành KPI để tính lương"
+            description="Mức 100% là hoàn thành định mức KPI. Tỷ lệ % này sẽ tự động cập nhật vào bảng tính lương của nhân sự trong tháng."
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontWeight: 600, display: 'block', marginBottom: 8 }}>
+            Tỷ lệ hoàn thành KPI (%):
+          </label>
+          <Row gutter={12} align="middle">
+            <Col span={10}>
+              <InputNumber
+                min={0}
+                max={200}
+                step={5}
+                style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
+                value={singleKpiPercent}
+                onChange={(val) => setSingleKpiPercent(Number(val) || 0)}
+                addonAfter="%"
+              />
+            </Col>
+            <Col span={14}>
+              <Space wrap size={[4, 4]}>
+                {[50, 70, 80, 90, 100, 110, 120].map((quick) => (
+                  <Button
+                    key={quick}
+                    size="small"
+                    type={singleKpiPercent === quick ? 'primary' : 'default'}
+                    onClick={() => setSingleKpiPercent(quick)}
+                    style={{ fontSize: 11 }}
+                  >
+                    {quick}%
+                  </Button>
+                ))}
+              </Space>
+            </Col>
+          </Row>
+        </div>
+
+        {/* Realtime KPI Calculation Preview */}
+        {(() => {
+          const kpiSal = Number(singleKpiEmp?.kpiSalary || 0);
+          const estPay = Math.round((kpiSal * (Number(singleKpiPercent) || 0)) / 100);
+          return (
+            <div
+              style={{
+                background: '#f9f0ff',
+                border: '1px solid #d3adf7',
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span>Định mức Lương KPI:</span>
+                <b>{kpiSal.toLocaleString('vi-VN')} đ</b>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span>Tỷ lệ hoàn thành:</span>
+                <b style={{ color: singleKpiPercent >= 100 ? '#52c41a' : '#fa8c16' }}>
+                  {singleKpiPercent}%
+                </b>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  borderTop: '1px dashed #d3adf7',
+                  paddingTop: 6,
+                }}
+              >
+                <span>Lương KPI dự kiến nhận vào lương:</span>
+                <b style={{ color: '#722ed1', fontSize: 15 }}>{estPay.toLocaleString('vi-VN')} đ</b>
+              </div>
+            </div>
+          );
+        })()}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontWeight: 600, display: 'block', marginBottom: 8 }}>
+            Ghi chú / Nhận xét đánh giá:
+          </label>
+          <Input.TextArea
+            rows={3}
+            placeholder="Nhận xét kết quả công việc tháng, lý do thưởng/phạt KPI..."
+            value={singleKpiNote}
+            onChange={(e) => setSingleKpiNote(e.target.value)}
+          />
+        </div>
+
+        <div style={{ textAlign: 'right', marginTop: 16 }}>
+          <Button onClick={() => setSingleKpiModalOpen(false)} style={{ marginRight: 8 }}>
+            Hủy
+          </Button>
+          <Button
+            type="primary"
+            style={{ background: '#722ed1', borderColor: '#722ed1' }}
+            loading={savingSingleKpi}
+            onClick={handleSaveSingleKpi}
+          >
+            Lưu đánh giá KPI
+          </Button>
+        </div>
       </Modal>
     </div>
   );
