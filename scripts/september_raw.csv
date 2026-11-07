@@ -1,0 +1,21 @@
+BẢNG CHI TIẾT CHẤM CÔNG')).pop();
+13: const parsedJson = JSON.parse(lastLine);
+14: const fullCsv = parsedJson.content.replace(/<USER_REQUEST>[\s\S]*?<\/USER_REQUEST>/, '').trim();
+15: 
+16: console.log('CSV length:', fullCsv.length);
+17: 
+18: async function testFull() {
+19:   try {
+20:     const blocks = parser.parseRawText(fullCsv);
+21:     console.log('Parsed blocks count:', blocks.length);
+22:     console.log('First 5 blocks:', blocks.slice(0, 5).map(b => ({ code: b.attendanceCode, name: b.fullName, daysCount: b.days.length })));
+23:     
+24:     // Now test processAndSaveAttendance
+25:     const res = await parser.processAndSaveAttendance(fullCsv, 'admin', 'test_thang9.csv');
+26:     console.log('Import result:', res);
+27:   } catch (err) {
+28:     console.error('ERROR during full import:', err);
+29:   }
+30: }
+31: 
+32: testFull().finally(() => prisma.$disconnect());

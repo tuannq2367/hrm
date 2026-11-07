@@ -1,0 +1,22 @@
+{
+  "name": "snake-hrm",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:api": "npm run start:dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "build:shared": "npm run build --workspace=packages/shared",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:web": "npm run build --workspace=apps/web",
+    "build": "npm run build:shared && npm run build:web && npm run build:api",
+    "test": "npm run test --workspace=apps/api"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

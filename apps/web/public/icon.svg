@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1677ff" />
+      <stop offset="100%" stop-color="#003eb3" />
+    </linearGradient>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#52c41a" />
+      <stop offset="100%" stop-color="#389e0d" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#001529" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background Rounded Rect -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Inner Badge Shadow -->
+  <g filter="url(#shadow)">
+    <!-- Main Center Badge: White Card -->
+    <rect x="96" y="96" width="320" height="320" rx="48" fill="#ffffff" />
+  </g>
+
+  <!-- HRM Icon Elements -->
+  <!-- Building / Organization -->
+  <path d="M160 360 V220 H352 V360" fill="none" stroke="#e6f4ff" stroke-width="24" stroke-linecap="round" />
+  
+  <!-- Person (Head & Shoulders) in Primary Blue -->
+  <circle cx="256" cy="200" r="44" fill="#1677ff" />
+  <path d="M192 320 C192 270 220 256 256 256 C292 256 320 270 320 320 Z" fill="#1677ff" />
+
+  <!-- Checkmark Badge on bottom right -->
+  <circle cx="340" cy="330" r="38" fill="url(#badgeGrad)" stroke="#ffffff" stroke-width="8" />
+  <path d="M326 330 L336 340 L356 320" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- App Title Small Accent -->
+  <text x="256" y="468" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="34" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="4">HRM APP</text>
+</svg>

@@ -1,0 +1,457 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.0.x", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "rhel-openssl-1.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  phone              String    @unique
+  passwordHash       String
+  role               String    @default("EMPLOYEE") // ADMIN, HR, MANAGER, EMPLOYEE
+  mustChangePassword Boolean   @default(true)
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  employee           Employee?
+}
+
+model Department {
+  id               String       @id @default(uuid())
+  code             String       @unique
+  name             String
+  standardWorkDays Float?       @default(26) // Ngày công chuẩn trong tháng của phòng ban
+  otRatePerHour    Float?       @default(50000) // Đơn giá tăng ca (VNĐ/h) của phòng ban (mặc định 50.000đ)
+  unionFee         Float?       @default(50000) // Mức trích công đoàn / BH hàng tháng (mặc định 50.000đ, cửa hàng là 0đ)
+  isStoreSales     Boolean?     @default(false) // Thuộc nhóm bán hàng tại cửa hàng (chốt công tháng, không quẹt thẻ, ngày lễ tính công thực tế)
+  parentId         String?
+  managerId        String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  parent           Department?  @relation("DeptHierarchy", fields: [parentId], references: [id])
+  children         Department[] @relation("DeptHierarchy")
+  employees        Employee[]
+}
+
+model Position {
+  id          String      @id @default(uuid())
+  code        String      @unique
+  name        String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  employees   Employee[]
+}
+
+model Employee {
+  id                 String             @id @default(uuid())
+  employeeCode       String             @unique
+  attendanceCode     String
+  fullName           String
+  phone              String             @unique
+  email              String?
+  dateOfBirth        DateTime?
+  gender             String             @default("MALE") // MALE, FEMALE, OTHER
+  
+  // CCCD & Địa chỉ
+  idCardNumber       String?
+  idCardDate         DateTime?
+  idCardPlace        String?
+  addressPermanent   String?
+  addressTemporary   String?
+
+  // Tổ chức & Công việc
+  departmentId       String?
+  positionId         String?
+  managerId          String?
+  status             String             @default("PROBATION") // PROBATION, OFFICIAL, RESIGNED, MATERNITY_LEAVE, TEMPORARY_LEAVE
+  joinDate           DateTime
+  probationEndDate   DateTime?
+  officialDate       DateTime?
+  resignDate         DateTime?
+  leaveStartDate     DateTime?          // Ngày bắt đầu nghỉ thai sản / tạm hoãn
+  leaveEndDate       DateTime?          // Ngày kết thúc nghỉ thai sản / tạm hoãn
+  leaveNote          String?            // Ghi chú lý do nghỉ thai sản / tạm hoãn
+
+  // Tài chính & Pháp lý
+  hasInsurance       Boolean            @default(false)
+  insuranceSalary    Float?             // Mức lương đóng BHXH riêng nếu khác mặc định
+  customBaseSalary   Float?             // Mức lương cơ bản riêng nếu cấu hình khác công thức mặc định
+  kpiSalary          Float?             @default(0) // Mức lương KPI (VNĐ) cấu hình cho nhân sự
+  isStoreSales       Boolean?           @default(false) // Thuộc nhóm bán hàng tại cửa hàng (chốt công tháng, không quẹt thẻ, ngày lễ tính công thực tế)
+  taxCode            String?
+  insuranceNumber    String?
+  bankAccount        String?
+  bankName           String?
+  dependentsCount    Int                @default(0)
+
+  // Liên kết User
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Quan hệ
+  department         Department?        @relation(fields: [departmentId], references: [id])
+  position           Position?          @relation(fields: [positionId], references: [id])
+  manager            Employee?          @relation("ManagementLine", fields: [managerId], references: [id])
+  subordinates       Employee[]         @relation("ManagementLine")
+
+  documents          EmployeeDocument[]
+  contracts          Contract[]
+  salaryProfiles     SalaryProfile[]
+  attendanceDays     AttendanceDay[]
+  punches            Punch[]
+  requests           Request[]
+  makeupDebts        MakeupDebt[]
+  leaveBalances      LeaveBalance[]
+  violations         ViolationRecord[]
+  payslips           Payslip[]
+  adjustments        Adjustment[]
+  kpiEvaluations     MonthlyKpi[]
+
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model EmployeeDocument {
+  id          String    @id @default(uuid())
+  employeeId  String
+  type        String    // ID_CARD_FRONT, ID_CARD_BACK, RESUME, AVATAR, DEGREE, HEALTH_CERT, LABOR_CONTRACT, OTHER
+  fileName    String
+  filePath    String
+  fileSize    Int
+  mimeType    String
+  expiryDate  DateTime?
+  createdAt   DateTime  @default(now())
+
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model Contract {
+  id             String    @id @default(uuid())
+  employeeId     String
+  contractNumber String    @unique
+  type           String    // PROBATION, DEFINITE_TERM, INDEFINITE_TERM, COLLABORATOR
+  startDate      DateTime
+  endDate        DateTime?
+  agreedSalary   Float
+  signedDate     DateTime?
+  fileScanUrl    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  employee       Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model SalaryProfile {
+  id              String    @id @default(uuid())
+  employeeId      String
+  agreedSalary    Float
+  baseSalary      Float?    // Mức LCB áp dụng tại thời điểm này (nếu có tùy chỉnh riêng)
+  managementLevel Int       @default(0) // 0, 1, 2, 3
+  kpiSalary       Float?    @default(0) // Mức lương KPI (VNĐ) tại thời điểm này
+  effectiveDate   DateTime
+  note            String?
+  createdAt       DateTime  @default(now())
+
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model HrmSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model Holiday {
+  id        String   @id @default(uuid())
+  name      String
+  date      DateTime @unique
+  isPaid    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model AttendanceImport {
+  id          String   @id @default(uuid())
+  fileName    String
+  importedAt  DateTime @default(now())
+  importedBy  String
+  totalRows   Int      @default(0)
+  successRows Int      @default(0)
+  errorLog    String?
+  punches     Punch[]
+}
+
+model Punch {
+  id               String            @id @default(uuid())
+  attendanceCode   String
+  punchTime        DateTime
+  source           String            @default("EXCEL")
+  importId         String?
+  employeeId       String?
+
+  import           AttendanceImport? @relation(fields: [importId], references: [id], onDelete: Cascade)
+  employee         Employee?         @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([attendanceCode, punchTime])
+}
+
+model AttendanceDay {
+  id                  String    @id @default(uuid())
+  employeeId          String
+  workDate            DateTime
+  checkIn             DateTime?
+  checkOut            DateTime?
+  workedHours         Float     @default(0)
+  workUnits           Float     @default(0) // 0, 0.25, 0.5, 0.75, 1.0 (Công thực tế)
+  leaveUnits          Float     @default(0) // 0, 0.25, 0.5, 0.75, 1.0 (Công phép hưởng lương)
+  lateMinutes         Int       @default(0)
+  earlyMinutes        Int       @default(0)
+  isLate              Boolean   @default(false)
+  isEarly             Boolean   @default(false)
+  isMissingPunch      Boolean   @default(false)
+  isThroughLunch      Boolean   @default(false)
+  otHours             Float     @default(0)
+  makeupMinutesDebt   Int       @default(0)
+  isManualOverridden  Boolean   @default(false)
+  overrideReason      String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, workDate])
+}
+
+model Request {
+  id           String    @id @default(uuid())
+  employeeId   String
+  type         String    // LATE_EARLY_EXEMPT, LATE_EARLY_MAKEUP, MAKEUP, OT, THROUGH_LUNCH, LEAVE, UNPAID_LEAVE, MISSING_PUNCH
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  targetDate   DateTime
+  startTime    String?
+  endTime      String?
+  minutes      Int?
+  reason       String
+  adminNote    String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model MakeupDebt {
+  id           String    @id @default(uuid())
+  employeeId   String
+  originalDate DateTime
+  debtMinutes  Int
+  deadlineDate DateTime  // Ngày làm việc kế tiếp
+  paidMinutes  Int       @default(0)
+  isResolved   Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model LeaveBalance {
+  id              String    @id @default(uuid())
+  employeeId      String
+  year            Int
+  totalEntitled   Float     @default(12)
+  seniorityBonus  Float     @default(0)
+  usedBeforeSystem Float    @default(0)
+  used            Float     @default(0)
+  remaining       Float     @default(12)
+  paidOutMoney    Float     @default(0)
+  updatedAt       DateTime  @updatedAt
+
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year])
+}
+
+model ViolationRecord {
+  id          String    @id @default(uuid())
+  employeeId  String
+  month       String    // YYYY-MM
+  type        String    // LATE_3_DAYS, EARLY_EXCEED_7, OVERDUE_MAKEUP
+  details     String
+  fineAmount  Float     @default(0)
+  isConfirmed Boolean   @default(false)
+  confirmedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model PayrollPeriod {
+  id               String    @id @default(uuid())
+  month            String    @unique // YYYY-MM
+  standardWorkDays Int       @default(26)
+  isLocked         Boolean   @default(false)
+  lockedAt         DateTime?
+  lockedBy         String?
+  createdAt        DateTime  @default(now())
+  payslips         Payslip[]
+}
+
+model Payslip {
+  id                  String        @id @default(uuid())
+  periodId            String
+  employeeId          String
+  agreedSalary        Float
+  baseSalary          Float
+  allowance           Float
+  managementSalary    Float
+  skillSalary         Float         // Lương chuyên môn cố định theo ngày công
+  kpiSalary           Float         @default(0) // Lương KPI định mức
+  kpiPercent          Float         @default(100) // Tỷ lệ hoàn thành KPI (% mặc định 100)
+  kpiPay              Float         @default(0) // Lương KPI thực nhận (kpiSalary * kpiPercent / 100)
+  actualWorkUnits     Float
+  paidLeaveUnits      Float
+  holidayUnits        Float
+  otHours             Float
+  otPay               Float
+  otBonus             Float
+  directorBonus       Float         @default(0)
+  lateFine            Float         @default(0)
+  otherFine           Float         @default(0)
+  insuranceDeduction  Float         @default(0)
+  unionFee            Float         @default(0)
+  personalIncomeTax   Float         @default(0)
+  advancePayment      Float         @default(0)
+  netSalary           Float
+  snapshotData        String        // JSON string đầy đủ các dòng chi tiết
+  isPaid              Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+
+  period              PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employee            Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([periodId, employeeId])
+}
+
+model Adjustment {
+  id         String   @id @default(uuid())
+  employeeId String
+  month      String   // YYYY-MM
+  type       String   // DIRECTOR_BONUS, FINE, ADVANCE
+  amount     Float
+  reason     String
+  createdBy  String
+  createdAt  DateTime @default(now())
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  oldValue  String?
+  newValue  String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model SystemError {
+  id             String    @id @default(uuid())
+  errorTraceId   String    @unique // Mã lỗi ngắn gọn VD: ERR-123456
+  message        String
+  stack          String?
+  path           String?
+  method         String?
+  statusCode     Int       @default(500)
+  status         String    @default("OPEN") // OPEN, RESOLVED, IGNORED
+  resolutionNote String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model CompanyDocument {
+  id             String    @id @default(uuid())
+  title          String
+  documentNumber String?   // Số hiệu văn bản (VD: 01/2026/QĐ-HRM)
+  category       String    // QUY_CHE, NOI_QUY, QUY_TRINH, CONG_VAN, THONG_BAO
+  effectiveDate  DateTime  @default(now())
+  fileName       String
+  filePath       String
+  fileSize       Int
+  mimeType       String
+  uploadedBy     String
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model MonthlyKpi {
+  id          String    @id @default(uuid())
+  employeeId  String
+  month       String    // YYYY-MM
+  kpiPercent  Float     @default(100) // % hoàn thành KPI (mặc định 100)
+  evaluatedBy String?   // Người đánh giá (Trưởng bộ phận hoặc Admin)
+  notes       String?   // Nhận xét, đánh giá trong tháng
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month])
+  @@map("monthly_kpis")
+}
+
+model ExternalInsurance {
+  id               String    @id @default(uuid())
+  fullName         String    // Họ và tên người gửi đóng
+  phone            String?   // Số điện thoại liên hệ
+  idCard           String?   // Số CCCD / CMND
+  insuranceCode    String?   // Mã số sổ BHXH
+  insuranceSalary  Float     // Mức lương đóng BHXH (VNĐ)
+  contributionRate Float?    @default(32) // Tỷ lệ đóng (%) - mặc định 32% (BHXH 25.5% + BHYT 4.5% + BHTN 2%)
+  monthlyAmount    Float     // Số tiền phải nộp hàng tháng (VNĐ)
+  startDate        DateTime  // Ngày bắt đầu gửi đóng
+  endDate          DateTime? // Ngày kết thúc gửi đóng (nếu đã dừng)
+  status           String    @default("ACTIVE") // ACTIVE (Đang đóng), PAUSED (Tạm dừng), STOPPED (Đã kết thúc)
+  notes            String?   // Ghi chú
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  payments         ExternalInsurancePayment[]
+
+  @@map("external_insurances")
+}
+
+model ExternalInsurancePayment {
+  id                   String            @id @default(uuid())
+  externalInsuranceId  String
+  month                String            // YYYY-MM
+  amount               Float             // Số tiền đã nộp
+  paymentDate          DateTime          // Ngày nộp tiền
+  paymentMethod        String?           @default("TRANSFER") // CASH (Tiền mặt), TRANSFER (Chuyển khoản)
+  receiptNumber        String?           // Mã giao dịch / Số phiếu thu
+  notes                String?           // Ghi chú
+  receivedBy           String?           // Người thu tiền (Admin / Kế toán)
+  createdAt            DateTime          @default(now())
+
+  externalInsurance    ExternalInsurance @relation(fields: [externalInsuranceId], references: [id], onDelete: Cascade)
+
+  @@unique([externalInsuranceId, month])
+  @@map("external_insurance_payments")
+}
+
+
+
+
